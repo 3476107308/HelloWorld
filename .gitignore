@@ -1,1 +1,17 @@
 *.exe
+build/
+build-*/
+bulid/
+*.obj
+*.o
+*.pdb
+*.ilk
+.vscode/
+.idea/
+
+# Qt Creator 用户/本地配置
+.qtcreator/
+*.user
+
+# 第三方参考项目（GPL，切勿提交进本仓库）
+sandbox/reference_projects/

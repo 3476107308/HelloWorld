@@ -1,0 +1,16 @@
+百度网盘
+链接：https://pan.baidu.com/s/1rmTFolzna7AvVMF26heFRQ 
+提取码：wt5d
+
+一、Intellij Idea开发环境
+下载 IdeaC-2024.3.6.zip
+下载 jdk-17.0.12_windows-x64_bin.zip
+ 
+ 使用在磁盘上新建IdeaTools文件夹
+ 将IdeaC-2024.3.6.zip 解压到 IdeaTools\ideaIC-2024.3.6.win
+ 将jdk-17.0.12_windows-x64_bin.zip 解压到 IdeaTools\jdk-17.0.12
+ 在IdeaTools下新建文件夹 workspace，路径如下：IdeaTools\workspace，作为项目文件的工作目录
+
+
+二、备注：idea开发环境也可以从官网下载：https://www.jetbrains.com/zh-cn/idea/download/other.html
+ 
