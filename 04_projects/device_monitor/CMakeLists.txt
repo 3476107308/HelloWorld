@@ -19,8 +19,8 @@ qt_add_executable(device_monitor
     include/DeviceListModel.h
     include/TempChartWidget.h
     src/TempChartWidget.cpp
-    include/MessageParser.h
-    src/MessageParser.cpp
+    include/JsonLineParser.h
+    src/JsonLineParser.cpp
     include/Transport.h
     include/TcpTransport.h
     src/TcpTransport.cpp
@@ -30,7 +30,7 @@ qt_add_executable(device_monitor
 )
 
 target_include_directories(device_monitor PRIVATE include)
-
+target_compile_options(device_monitor PRIVATE -Wall -Wextra)
 
 
 target_link_libraries(device_monitor

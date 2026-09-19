@@ -26,7 +26,7 @@ constexpr double kMaxVoltage = 4.0;
 
 #include "TempChartWidget.h"
 #include "DeviceListModel.h"
-#include "MessageParser.h"
+#include "JsonLineParser.h"
 
 
 
@@ -110,15 +110,15 @@ void MainWindow::setupUi()
     root_layout->addWidget(chart_panel);
     root_layout->addWidget(log_panel);
 
-    parser_ = new MessageParser(this);
-    connect(parser_,&MessageParser::messageReceived,this,[this](const QJsonObject& obj){
+    parser_ = new JsonLineParser(this);
+    connect(parser_,&JsonLineParser::messageReceived,this,[this](const QJsonObject& obj){
         writeLog(QStringLiteral("收到消息：id=%1 温度%2 电压%3")
                      .arg(obj["id"].toString())
                      .arg(obj["temperature"].toDouble())
                      .arg(obj["voltage"].toDouble()));
     });
 
-    connect(parser_,&MessageParser::parseFailed,this,[this](const QString& reason){
+    connect(parser_,&JsonLineParser::parseFailed,this,[this](const QString& reason){
         writeLog(QStringLiteral("解析失败:") + reason);
     });
     sim_timer = new QTimer(this);

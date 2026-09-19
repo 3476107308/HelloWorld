@@ -20,6 +20,37 @@
 
 ---
 
+## 构建方式（2026-09-19 更新 — 旧命令已失效）
+
+以下三条是 9/19 核实到的环境事实，**旧卡里的 `cmake -S . -B build-windows-qt` 命令不要再直接用**：
+
+1. **仓库路径已从 `D:\AAA study`（带空格）改名为 `D:\AAA_study`（下划线）**。`build-windows/` 和 `build-windows-qt/` 里的 CMakeCache 仍指向旧路径，已作废；直接构建会报 `CMakeCache.txt directory ... is different`。
+2. **PATH 上的 `g++` 是 MSYS2 的 GCC 15.2.0，与 Qt 6.11.0 mingw_64（GCC 13.1.0）ABI 不匹配**，直接用会得到难懂的链接错误。必须用 `C:\Qt\Tools\mingw1310_64\bin`。
+3. CMakeLists 里**没有开 `-Wall -Wextra`**，所以卡里"0 warning（-Wall -Wextra）"这条验收目前无法验证；要验证需自行加上该编译选项。
+
+**统一改用**（任选其一）：
+
+```powershell
+# 方式 A（推荐）：一键脚本
+powershell -ExecutionPolicy Bypass -File tools\build.ps1
+powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Clean     # 改了 CMakeLists 或缓存脏了
+powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Config Release
+```
+
+```powershell
+# 方式 B：手写命令（注意先设 PATH）
+$env:PATH = 'C:\Qt\Tools\mingw1310_64\bin;C:\Qt\Tools\Ninja;' + $env:PATH
+cmake -S . -B build-qt -G Ninja -DCMAKE_PREFIX_PATH=C:\Qt\6.11.0\mingw_64 -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-qt -j2
+```
+
+方式 C：直接用 Qt Creator 的 kit `Desktop_Qt_6_11_0_MinGW_64_bit-Debug`，它自带正确的编译器与 PATH。
+
+> 旧的 `build-windows/`、`build-windows-qt/` 由上一轮沙箱会话创建，属性归 `chen\CodexSandboxOffline`，**需要在普通终端里手动删除**（沙箱内删不掉）：
+> `Remove-Item -Recurse -Force build-windows, build-windows-qt`
+
+---
+
 ## 阶段 P0：收口与传输层（9/17 – 9/20）
 
 ---

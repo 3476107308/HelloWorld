@@ -1,16 +1,16 @@
-#ifndef MESSAGEPARSER_H
-#define MESSAGEPARSER_H
+#ifndef JSONLINEPARSER_H
+#define JSONLINEPARSER_H
 
 #include <QObject>
 #include <QJsonObject>
 #include <QByteArray>
 #include <QString>
 
-class MessageParser : public QObject
+class JsonLineParser   : public QObject
 {
     Q_OBJECT
 public:
-    MessageParser(QObject* parent);
+    JsonLineParser(QObject* parent);
     void appendData(const QByteArray& chunk);
 
 signals:
@@ -21,4 +21,4 @@ private:
     QByteArray buffer_;
     void parseLine(const QByteArray&);
 };
-#endif // MESSAGEPARSER_H
+#endif // JSONLINEPARSER_H

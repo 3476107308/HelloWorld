@@ -13,7 +13,7 @@ class QTextEdit;
 class QTimer;
 class DeviceListModel;
 class TempChartWidget;
-class MessageParser;
+class JsonLineParser;
 class QByteArray;
 
 class MainWindow final : public QMainWindow
@@ -42,7 +42,7 @@ private:
     QPushButton* load_button_ = nullptr;
     DeviceListModel* device_model_ = nullptr;
     TempChartWidget* temp_chart_ = nullptr;
-    MessageParser* parser_ = nullptr;
+    JsonLineParser* parser_ = nullptr;
     QTimer* sim_timer = nullptr;
     QByteArray pending_;
 

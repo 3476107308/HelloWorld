@@ -1,11 +1,11 @@
-#include "MessageParser.h"
+#include "JsonLineParser.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 
-MessageParser::MessageParser(QObject* parent):QObject(parent){}
+JsonLineParser::JsonLineParser(QObject* parent):QObject(parent){}
 
-void MessageParser::appendData(const QByteArray& chunk)
+void JsonLineParser::appendData(const QByteArray& chunk)
 {
     buffer_ += chunk;
 
@@ -18,7 +18,7 @@ void MessageParser::appendData(const QByteArray& chunk)
     }
 }
 
-void MessageParser::parseLine(const QByteArray& line)
+void JsonLineParser::parseLine(const QByteArray& line)
 {
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(line,&err);
