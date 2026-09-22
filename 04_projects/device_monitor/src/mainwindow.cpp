@@ -23,10 +23,12 @@ constexpr double kMaxVoltage = 4.0;
 #include <QDateTime>
 #include <QListView>
 #include <QItemSelectionModel>
+#include <QTcpSocket>
 
 #include "TempChartWidget.h"
 #include "DeviceListModel.h"
 #include "JsonLineParser.h"
+#include "TcpTransport.h"
 
 
 
@@ -90,7 +92,7 @@ void MainWindow::setupUi()
 
     refresh_timer_ = new QTimer(this);
     connect(refresh_timer_,&QTimer::timeout,this,&MainWindow::refreshDeviceData);
-    refresh_timer_->start(1000);
+    //refresh_timer_->start(1000);
 
     save_button_ = new QPushButton(QStringLiteral("保存配置"),detail_panel);
     detail_layout->addRow(QStringLiteral("操作"),save_button_);
@@ -123,8 +125,32 @@ void MainWindow::setupUi()
     });
     sim_timer = new QTimer(this);
     connect(sim_timer,&QTimer::timeout,this,&MainWindow::simulateCommData);
-    sim_timer->start(800);
+    //sim_timer->start(800);
 
+    transport_ = new TcpTransport(this);
+    connect(transport_,&Transport::openSucceeded,this,[this]{
+        writeLog(QStringLiteral("连接成功"));
+    });
+    connect(transport_,&Transport::openError,this,[this](const QString& reason){
+        writeLog(QStringLiteral("连接失败:") + reason);
+    });
+    connect(transport_,&Transport::closed,this,[this]{
+        writeLog(QStringLiteral("连接已断开"));
+    });
+    connect(transport_,&Transport::sendFailed,this,[this](const QString& reason){
+        writeLog(QStringLiteral("发送失败:") + reason);
+    });
+    connect(transport_,&Transport::receiveByte,this,[this](const QByteArray& data){
+        writeLog(QStringLiteral("接收成功，数据为:") + QString::fromUtf8(data));
+    });
+    connect_button_ = new QPushButton(QStringLiteral("tcp连接"),detail_panel);
+    detail_layout->addRow(QStringLiteral("操作"),connect_button_);
+    connect(connect_button_,&QPushButton::clicked,this,[this]{
+        if(transport_->open())
+            writeLog(QStringLiteral("已受理"));
+        else
+            writeLog(QStringLiteral("未受理"));
+    });
 
 }
 

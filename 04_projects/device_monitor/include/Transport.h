@@ -21,5 +21,7 @@ signals:
     void receiveByte(const QByteArray& data);
     void openSucceeded();
     void openError(const QString& reason);
+    void closed();
+    void sendFailed(const QString& reason);
 };
 #endif // TRANSPORT_H

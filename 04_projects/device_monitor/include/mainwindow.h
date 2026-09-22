@@ -15,6 +15,7 @@ class DeviceListModel;
 class TempChartWidget;
 class JsonLineParser;
 class QByteArray;
+class TcpTransport;
 
 class MainWindow final : public QMainWindow
 {
@@ -45,6 +46,8 @@ private:
     JsonLineParser* parser_ = nullptr;
     QTimer* sim_timer = nullptr;
     QByteArray pending_;
+    TcpTransport* transport_ = nullptr;
+    QPushButton* connect_button_ = nullptr;
 
 public slots:
     void updateDeviceDetails(int row);

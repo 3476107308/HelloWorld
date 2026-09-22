@@ -6,6 +6,14 @@
 - 参考样本：`D:\AAA study\sandbox\reference_projects\SerialTest`。
 - 技术选择：Qt 6 + CMake；正式项目不使用 qmake。
 
+> **构建方式（2026-09-19 更新 —— 本文档下方历史记录里的命令已作废）**
+> 仓库已从 `D:\AAA study`（带空格）改名为 `D:\AAA_study`（下划线）。CMake 会**把源目录绝对路径写死进 `CMakeCache.txt` 和 `build.ninja`**，所以改名之前存在的构建目录（`build-windows/`、`build-windows-qt/`、`build/Desktop_Qt_6_11_0_MinGW_64_bit-Debug/`）**全部失效**，直接构建会报 `CMakeCache.txt directory ... is different`。**CMake 构建目录不可搬迁**——源目录一改名，就必须删掉重新生成。
+> 当前统一使用以下任一种，**不要再用历史记录里的 `cmake --build build-windows-qt -j2`**：
+> - **命令行**：`powershell -ExecutionPolicy Bypass -File tools\build.ps1`（构建目录 `build-qt/`）
+> - **Qt Creator**：kit `Desktop_Qt_6_11_0_MinGW_64_bit-Debug`
+>
+> 脚本会把 `C:\Qt\Tools\mingw1310_64` 放到 PATH 最前。原因：系统 PATH 上另外有一个 MSYS2 的 `g++`（GCC 15.2.0），而 Qt 6.11.0 的 `mingw_64` 是用 **GCC 13.1.0** 构建的，用错编译器会产生难以理解的链接错误。
+
 阶段 0 文件：
 
 - `CMakeLists.txt`
@@ -150,6 +158,35 @@ main
 遇到的问题：`QRectF(x,y,宽,高)` 的第二个参数是 y（上偏移），误写成 `bottomMargin`；x 误用整个 `width()` 而非 `plot.width()`（曲线溢出右边界）；y 公式漏掉 `(points_[i] - kMinTemp)` 且用整个 `height()`（高温画到控件外）；用 `QPoint`（整数）代替 `QPointF` 导致坐标被截断；`clear()` 漏 `update()`；网格与曲线的 y 必须用**同一公式**才能对齐。  
 学到的技术：`QRectF` 表示"绘图区"，由控件尺寸减边距得到；数据坐标→像素坐标映射（x 按索引、y 按值，且 y 需反转）；`QPainter::drawLine/drawText`、`QPen`+`QColor` 区分网格（浅灰细）与曲线（蓝粗）；`Qt::AlignRight|Qt::AlignVCenter` 放置刻度数字；固定刻度范围（分母恒定，免防除零）。  
 下一步：阶段 4 增强完成。可选：按设备分别记录历史、电压曲线、X 轴时间刻度；或进入阶段 5（通信接入）。
+
+日期：2026-09-18（实际跨到 9-19 凌晨完成）
+功能：完成阶段 5 第一步「`Transport` 抽象接口 + `TcpTransport` 实现」，打通 TCP 客户端收发链路，达成 Day 2 全部四条验收。
+新增/修改文件：
+- `include/Transport.h`：在既有抽象接口上新增两个信号 `void closed();` 和 `void sendFailed(const QString& reason);`（判断依据：连接断开、发送失败是 TCP/串口/回环**共有**的能力，属于抽象层，不属于某一种传输方式）。
+- `include/TcpTransport.h`：新增 `void setHost(const QString& host);` / `void setPort(quint16 port);` 声明；新增成员 `QString host_ = "127.0.0.1";` / `quint16 port_ = 8888;`。
+- `src/TcpTransport.cpp`：构造函数 `socket_ = new QTcpSocket(this);` + 4 个 `connect`（`connected→openSucceeded`、`disconnected→closed`、`errorOccurred→openError(errorString())`、`readyRead→receiveByte(readAll())`）；实现 `open()`（判 `state()` 后 `connectToHost(host_, port_)`）、`close()`（`disconnectFromHost()`）、`isConnected()`（判 `ConnectedState`）、`sendByte()`（先拦未连接 → `emit sendFailed` → `write(chunk)`）、`setHost()`/`setPort()`。
+- `include/mainwindow.h`：新增 `class TcpTransport;` 前置声明、`TcpTransport* transport_ = nullptr;`、`QPushButton* connect_button_ = nullptr;`。
+- `src/mainwindow.cpp`：新增 `#include "TcpTransport.h"`；创建 `transport_ = new TcpTransport(this);` 并把 5 个信号（`openSucceeded`/`openError`/`sendFailed`/`closed`/`receiveByte`）以 `&Transport::` 限定连到 `writeLog()`；新增「tcp连接」按钮，点击调 `transport_->open()` 并把返回值写进日志；临时注释 `sim_timer->start(800);`（假数据源退场，避免淹没真实日志）。
+- `CMakeLists.txt`：新增 `target_compile_options(device_monitor PRIVATE -Wall -Wextra)`。
+- 新增 `tools/build.ps1`（一键构建，锁死 Qt 自带 MinGW + 正确的 `-D` 引号写法）、`tools/tcp_feed.ps1`（本机 TCP 回环数据源，逐步打印状态）。
+- `DAILY_CARDS.md`：顶部补「构建方式（2026-09-19 更新）」一节。
+
+构建命令：`powershell -ExecutionPolicy Bypass -File tools\build.ps1`（Qt Creator 亦可）。0 error、0 warning。
+
+运行证据：先用 `powershell -ExecutionPolicy Bypass -File tools\tcp_feed.ps1` 在 `127.0.0.1:8888` 起监听；点「tcp连接」后，日志区依次出现
+`已受理` → `连接成功` → `接收成功，数据为:{"id":"1","temperature":37,"voltage":3}`；
+监听端 15 秒后关闭连接，日志出现 `连接已断开`，**程序不崩溃**；**再次点击可再次连接成功**（第二轮完整重放）；连接无人监听的端口时出现 `连接失败:Connection refused`（明确报错，非静默失败）。监听端打印 `[4] sent #1 -> 40 bytes`，与 payload 39 字节 + `\n` 完全一致，说明零丢字节。
+
+遇到的问题：
+- **环境（本日主要耗时项）**：① 仓库改名导致三个 CMake 构建目录因缓存内写死旧绝对路径而全部失效（见文首说明）；② PATH 上是 MSYS2 的 GCC 15.2.0，与 Qt 6.11.0 mingw_64 的 GCC 13.1.0 ABI 不匹配；③ **PowerShell 5.1 对以 `-` 开头的原生命令参数不做变量展开**，`-DCMAKE_PREFIX_PATH=$QtDir` 会原样传给 cmake，报出来的却是「找不到 Qt6」——错误位置与真实原因不在一起（加双引号写成 `"-DCMAKE_PREFIX_PATH=$QtDir"` 即可）。
+- **代码**：`emit close();` —— `emit` 是空宏，该行实际是**调用虚函数 `close()`**，`closed()` 信号从未发出，且**编译零警告**（`close` 与 `closed` 一字之差）；`socket_ != nullptr` 不能当连接判据（构造函数已 `new`，终生非空）；`transport_ = new QTcpSocket(this)` 类型错——把实现当成了抽象，若成立会让 `MainWindow` 直接耦合 TCP、使整个 `TcpTransport` 沦为死代码；`receiveByte` 最初无人 `connect`，数据进黑洞；`open()` 初版漏写 `return true`（"not all control paths return a value"，路径无返回值属未定义行为）。
+- **工具**：多行脚本粘贴进 PowerShell 控制台不可靠（行被截断或提前提交），脚本只执行了一部分——表现为"客户端已接入但一个字节都没发"。改用 `.ps1` 文件运行后排除。
+
+学到的技术：`QTcpSocket` 的非阻塞异步模型（`connectToHost()` 立即返回，结果只走 `connected`/`errorOccurred` 信号）；`QAbstractSocket::SocketState` 状态判据（`open()` 只放行 `UnconnectedState`，`isConnected()` 只认 `ConnectedState`——`ConnectingState` 不算已连接）；`readyRead` 中一次 `readAll()` 读空（它是"有新数据"而非"有一条完整消息"）；`errorString()` 与 `QString::fromUtf8()` 解码；`disconnectFromHost()` 异步优雅关闭 vs `abort()`，以及为何**不能在事件循环里阻塞等待**异步完成（死锁）；`QStringLiteral`（编译期构造）；`&Transport::信号` 限定——**抽象层的设计在这里兑现**：`MainWindow` 只依赖 `Transport`，Day 11 加串口时它一行都不用改；`HostLookupState` 只在主机名为域名时出现（写 IP 字面量则跳过，`localhost` 还会引入 IPv6 `::1` 优先的不确定性）。
+
+下一步：进入阶段 5 第二步，按 Day 4 卡片做 **M1** —— 收发框 `DataView`（文本 / HEX 双模式、`rx`/`tx` 字节计数、最大行数限制），并让曲线改由**解析后的真实数据**驱动（`receiveByte` → `JsonLineParser` → 曲线），正式决定 `sim_timer` 的去留。另有一处待收口：`errorOccurred` 在对端**正常关闭**时也会触发 `RemoteHostClosedError`，目前会多打一条「连接失败」，应过滤或改为中性文案。
+
+
 
 ## 记录格式
 
