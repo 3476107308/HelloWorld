@@ -29,6 +29,8 @@ constexpr double kMaxVoltage = 4.0;
 #include "DeviceListModel.h"
 #include "JsonLineParser.h"
 #include "TcpTransport.h"
+#include "DataView.h"
+
 
 
 
@@ -110,6 +112,12 @@ void MainWindow::setupUi()
 
     root_layout->addWidget(content_splitter,1);
     root_layout->addWidget(chart_panel);
+    auto* data_panel = new QGroupBox(QStringLiteral("收发框"),central_widget);
+    auto* data_panel_layout = new QVBoxLayout(data_panel);
+    data_view_ = new DataView(data_panel);
+    data_panel_layout->addWidget(data_view_);
+    root_layout->addWidget(data_panel);
+
     root_layout->addWidget(log_panel);
 
     parser_ = new JsonLineParser(this);
@@ -127,6 +135,7 @@ void MainWindow::setupUi()
     connect(sim_timer,&QTimer::timeout,this,&MainWindow::simulateCommData);
     //sim_timer->start(800);
 
+
     transport_ = new TcpTransport(this);
     connect(transport_,&Transport::openSucceeded,this,[this]{
         writeLog(QStringLiteral("连接成功"));
@@ -142,6 +151,7 @@ void MainWindow::setupUi()
     });
     connect(transport_,&Transport::receiveByte,this,[this](const QByteArray& data){
         writeLog(QStringLiteral("接收成功，数据为:") + QString::fromUtf8(data));
+        data_view_->appendData(data);
     });
     connect_button_ = new QPushButton(QStringLiteral("tcp连接"),detail_panel);
     detail_layout->addRow(QStringLiteral("操作"),connect_button_);
@@ -151,6 +161,9 @@ void MainWindow::setupUi()
         else
             writeLog(QStringLiteral("未受理"));
     });
+
+
+
 
 }
 

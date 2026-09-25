@@ -24,6 +24,8 @@ qt_add_executable(device_monitor
     include/Transport.h
     include/TcpTransport.h
     src/TcpTransport.cpp
+    include/DataView.h
+    src/DataView.cpp
 
 
 

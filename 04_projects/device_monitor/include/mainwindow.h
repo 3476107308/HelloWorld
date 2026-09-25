@@ -16,6 +16,7 @@ class TempChartWidget;
 class JsonLineParser;
 class QByteArray;
 class TcpTransport;
+class DataView;
 
 class MainWindow final : public QMainWindow
 {
@@ -48,6 +49,7 @@ private:
     QByteArray pending_;
     TcpTransport* transport_ = nullptr;
     QPushButton* connect_button_ = nullptr;
+    DataView* data_view_ = nullptr;
 
 public slots:
     void updateDeviceDetails(int row);
