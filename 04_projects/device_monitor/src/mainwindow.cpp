@@ -30,7 +30,7 @@ constexpr double kMaxVoltage = 4.0;
 #include "JsonLineParser.h"
 #include "TcpTransport.h"
 #include "DataView.h"
-
+#include "ConnectBar.h"
 
 
 
@@ -110,6 +110,20 @@ void MainWindow::setupUi()
     temp_chart_->setMinimumHeight(120);
     chart_layout->addWidget(temp_chart_);
 
+    connect_bar_ = new ConnectBar(central_widget);
+    root_layout->addWidget(connect_bar_);
+    connect(connect_bar_,&ConnectBar::openRequested,this,[this](const ConnectionConfig& cfg){
+        transport_->setHost(cfg.host);
+        transport_->setPort(cfg.port);
+        if(!transport_->open())
+        {
+            writeLog(QStringLiteral("打开被拒绝：当前状态不允许连接"));
+            connect_bar_->setStatus(ConnectBar::Status::Error,QStringLiteral("当前状态不允许连接"));
+        }
+    });
+    connect(connect_bar_,&ConnectBar::closeRequested,this,[this]{
+        transport_->close();
+    });
     root_layout->addWidget(content_splitter,1);
     root_layout->addWidget(chart_panel);
     auto* data_panel = new QGroupBox(QStringLiteral("收发框"),central_widget);
@@ -140,12 +154,15 @@ void MainWindow::setupUi()
     transport_ = new TcpTransport(this);
     connect(transport_,&Transport::openSucceeded,this,[this]{
         writeLog(QStringLiteral("连接成功"));
+        connect_bar_->setStatus(ConnectBar::Status::Connected);
     });
     connect(transport_,&Transport::openError,this,[this](const QString& reason){
         writeLog(QStringLiteral("连接失败:") + reason);
+        connect_bar_->setStatus(ConnectBar::Status::Error,reason);
     });
     connect(transport_,&Transport::closed,this,[this]{
         writeLog(QStringLiteral("连接已断开"));
+        connect_bar_->setStatus(ConnectBar::Status::Disconnected);
     });
     connect(transport_,&Transport::sendFailed,this,[this](const QString& reason){
         writeLog(QStringLiteral("发送失败:") + reason);
@@ -155,14 +172,9 @@ void MainWindow::setupUi()
         data_view_->appendData(data);
         parser_->appendData(data);
     });
-    connect_button_ = new QPushButton(QStringLiteral("tcp连接"),detail_panel);
-    detail_layout->addRow(QStringLiteral("操作"),connect_button_);
-    connect(connect_button_,&QPushButton::clicked,this,[this]{
-        if(transport_->open())
-            writeLog(QStringLiteral("已受理"));
-        else
-            writeLog(QStringLiteral("未受理"));
-    });
+
+
+
 
 
 

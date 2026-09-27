@@ -1,5 +1,6 @@
 #include "TcpTransport.h"
 #include <QTcpSocket>
+#include <QAbstractSocket>
 
 TcpTransport::TcpTransport(QObject* parent):Transport(parent)
 {
@@ -10,7 +11,9 @@ TcpTransport::TcpTransport(QObject* parent):Transport(parent)
     connect(socket_,&QTcpSocket::disconnected,this,[this](){
         emit closed();
     });
-    connect(socket_,&QTcpSocket::errorOccurred,this,[this]{emit openError(socket_->errorString());});
+    connect(socket_,&QTcpSocket::errorOccurred,this,[this](QAbstractSocket::SocketError e){
+        if(e == QAbstractSocket::RemoteHostClosedError) return;
+        emit openError(socket_->errorString());});
     connect(socket_,&QTcpSocket::readyRead,this,[this]{emit receiveByte(socket_->readAll());});
 
 }

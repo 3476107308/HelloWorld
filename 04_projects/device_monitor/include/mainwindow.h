@@ -17,6 +17,7 @@ class JsonLineParser;
 class QByteArray;
 class TcpTransport;
 class DataView;
+class ConnectBar;
 
 class MainWindow final : public QMainWindow
 {
@@ -46,8 +47,8 @@ private:
     TempChartWidget* temp_chart_ = nullptr;
     JsonLineParser* parser_ = nullptr;
     TcpTransport* transport_ = nullptr;
-    QPushButton* connect_button_ = nullptr;
     DataView* data_view_ = nullptr;
+    ConnectBar* connect_bar_ = nullptr;
 
 public slots:
     void updateDeviceDetails(int row);
