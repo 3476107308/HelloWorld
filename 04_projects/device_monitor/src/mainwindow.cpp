@@ -115,6 +115,9 @@ void MainWindow::setupUi()
     auto* data_panel = new QGroupBox(QStringLiteral("收发框"),central_widget);
     auto* data_panel_layout = new QVBoxLayout(data_panel);
     data_view_ = new DataView(data_panel);
+    connect(data_view_,&DataView::sendRequested,this,[this](const QByteArray& data){
+        transport_->sendByte(data);
+    });
     data_panel_layout->addWidget(data_view_);
     root_layout->addWidget(data_panel);
 

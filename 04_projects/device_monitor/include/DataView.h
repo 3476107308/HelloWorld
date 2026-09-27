@@ -7,6 +7,8 @@
 class QPlainTextEdit;
 class QLabel;
 class QCheckBox;
+class QPushButton;
+class QLineEdit;
 
 class DataView : public QWidget
 {
@@ -20,6 +22,7 @@ public:
 
 private:
     static constexpr int kMaxLines = 500;
+    void updateCounter();
 
     QPlainTextEdit* view_ = nullptr;
     QLabel* counter_label_ = nullptr;
@@ -27,7 +30,11 @@ private:
     qint64 rx_bytes_ = 0;
     qint64 tx_bytes_ = 0;
     QCheckBox* hex_check_ = nullptr;
+    QPushButton* send_button_ = nullptr;
+    QLineEdit* input_ = nullptr;
 
+signals:
+        void sendRequested(const QByteArray& data);
 
 };
 #endif // DATAVIEW_H

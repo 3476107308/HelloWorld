@@ -2,8 +2,11 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QString>
 #include <QCheckBox>
+#include <QPushButton>
+#include <QLineEdit>
 
 DataView::DataView(QWidget* parent):QWidget(parent)
 {
@@ -20,11 +23,28 @@ DataView::DataView(QWidget* parent):QWidget(parent)
     view_->setReadOnly(true);
     view_->setMaximumBlockCount(kMaxLines);
 
+
+
+    input_ = new QLineEdit(this);
+    send_button_ = new QPushButton(QStringLiteral("发送"),this);
+
+    auto* send_row = new QHBoxLayout();
+    send_row->addWidget(input_);
+    send_row->addWidget(send_button_);
+
     layout->addLayout(top_row);
     layout->addWidget(view_);
+    layout->addLayout(send_row);
 
     connect(hex_check_,&QCheckBox::toggled,this,[this](bool checked){
         setMode(checked ? DisplayMode::Hex : DisplayMode::Text);
+    });
+    connect(send_button_,&QPushButton::clicked,this,[this]{
+        const QByteArray bytes = input_->text().toUtf8();
+        if(bytes.isEmpty()) return;
+        tx_bytes_ += bytes.size();
+        updateCounter();
+        emit sendRequested(bytes);
     });
 
 }
@@ -42,7 +62,7 @@ void DataView::appendData(const QByteArray& data)
         text = QString::fromLatin1(data.toHex(' ').toUpper());
     }
     view_->appendPlainText(text);
-    counter_label_->setText(QStringLiteral("rx:%1 B").arg(rx_bytes_));
+    updateCounter();
 }
 
 void DataView::setMode(DisplayMode mode)
@@ -57,4 +77,9 @@ void DataView::setMode(DisplayMode mode)
         view_->appendPlainText(QStringLiteral("已经切换到Hex模式"));
     }
     mode_ = mode;
+}
+
+void DataView::updateCounter()
+{
+    counter_label_->setText(QStringLiteral("rx:%1 B tx:%2 B").arg(rx_bytes_).arg(tx_bytes_));
 }

@@ -68,8 +68,18 @@ while ($true) {
             if ($i -lt $Count) { Start-Sleep -Milliseconds $IntervalMs }
         }
 
-        Write-Host "[5] holding connection for ${HoldSeconds}s (watch the app now)" -ForegroundColor DarkGray
-        Start-Sleep -Seconds $HoldSeconds
+            Write-Host "[5] now type in the app and click send (waiting up to ${HoldSeconds}s)..." -ForegroundColor DarkGray
+        $stream.ReadTimeout = $HoldSeconds * 1000
+        try {
+            $buf = New-Object byte[] 4096
+            $n = $stream.Read($buf, 0, $buf.Length)
+            if ($n -gt 0) {
+                Write-Host "[7] received $n bytes: $([System.Text.Encoding]::UTF8.GetString($buf, 0, $n))" -ForegroundColor Magenta
+            }
+        }
+        catch {
+            Write-Host "[7] no data received (timeout)" -ForegroundColor DarkYellow
+        }
     }
     catch {
         Write-Host "[!] send failed: $($_.Exception.Message)" -ForegroundColor Red
