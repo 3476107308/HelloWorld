@@ -28,7 +28,8 @@ param(
     [int]$Count = 1,
     [int]$IntervalMs = 1000,
     [int]$HoldSeconds = 15,
-    [string]$Payload = '{"id":"1","temperature":37,"voltage":3}'
+    [string]$Payload = '{"id":"1","temperature":37,"voltage":3}',
+    [switch]$RandomTemp
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,10 +62,15 @@ while ($true) {
         $stream = $client.GetStream()
 
         for ($i = 1; $i -le $Count; $i++) {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($Payload + "`n")
+            $line = $Payload
+            if ($RandomTemp) {
+                $t = Get-Random -Minimum 20 -Maximum 61
+                $line = '{"id":"1","temperature":' + $t + ',"voltage":3}'
+            }
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($line + "`n")
             $stream.Write($bytes, 0, $bytes.Length)
             $stream.Flush()
-            Write-Host "[4] sent #$i -> $($bytes.Length) bytes" -ForegroundColor Yellow
+            Write-Host "[4] sent #$i -> $($bytes.Length) bytes : $line" -ForegroundColor Yellow
             if ($i -lt $Count) { Start-Sleep -Milliseconds $IntervalMs }
         }
 

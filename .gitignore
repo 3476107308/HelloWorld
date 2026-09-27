@@ -15,3 +15,11 @@ bulid/
 
 # 第三方参考项目（GPL，切勿提交进本仓库）
 sandbox/reference_projects/
+
+# 录屏 / 视频（体积大，不适合进版本库；文件仍可放在 docs/ 下，只是不提交）
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.wmv
+*.flv

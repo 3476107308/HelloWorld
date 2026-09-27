@@ -45,15 +45,12 @@ private:
     DeviceListModel* device_model_ = nullptr;
     TempChartWidget* temp_chart_ = nullptr;
     JsonLineParser* parser_ = nullptr;
-    QTimer* sim_timer = nullptr;
-    QByteArray pending_;
     TcpTransport* transport_ = nullptr;
     QPushButton* connect_button_ = nullptr;
     DataView* data_view_ = nullptr;
 
 public slots:
     void updateDeviceDetails(int row);
-    void simulateCommData();
 };
 
 #endif  // DEVICE_MONITOR_MAINWINDOW_H

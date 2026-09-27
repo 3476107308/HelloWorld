@@ -129,14 +129,12 @@ void MainWindow::setupUi()
                      .arg(obj["id"].toString())
                      .arg(obj["temperature"].toDouble())
                      .arg(obj["voltage"].toDouble()));
+        temp_chart_->addValue(obj["temperature"].toDouble());
     });
 
     connect(parser_,&JsonLineParser::parseFailed,this,[this](const QString& reason){
         writeLog(QStringLiteral("解析失败:") + reason);
     });
-    sim_timer = new QTimer(this);
-    connect(sim_timer,&QTimer::timeout,this,&MainWindow::simulateCommData);
-    //sim_timer->start(800);
 
 
     transport_ = new TcpTransport(this);
@@ -155,6 +153,7 @@ void MainWindow::setupUi()
     connect(transport_,&Transport::receiveByte,this,[this](const QByteArray& data){
         writeLog(QStringLiteral("接收成功，数据为:") + QString::fromUtf8(data));
         data_view_->appendData(data);
+        parser_->appendData(data);
     });
     connect_button_ = new QPushButton(QStringLiteral("tcp连接"),detail_panel);
     detail_layout->addRow(QStringLiteral("操作"),connect_button_);
@@ -195,7 +194,6 @@ void MainWindow::refreshDeviceData()
     devices_[row].voltage_ = QRandomGenerator::global()->bounded(1,6);
 
     device_model_->deviceDataChanged(row);
-    temp_chart_->addValue(device.temperature_);
     updateDeviceDetails(row);
     bool a = (devices_[row].temperature_ > kMaxTemperature);
     bool b = (devices_[row].voltage_ > kMaxVoltage);
@@ -299,41 +297,5 @@ void MainWindow::writeLog(const QString& msg)
         QString line = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") + QStringLiteral(" ") + msg;
         file.write(line.toUtf8() + "\n");
         file.close();
-    }
-}
-
-void MainWindow::simulateCommData()
-{
-    if(!pending_.isEmpty())
-    {
-        parser_->appendData(pending_);
-        pending_.clear();
-    }
-
-    QByteArray stream;
-    int n = 1 + QRandomGenerator::global()->bounded(3);
-    for(int k = 0;k < n;k++)
-    {
-        QJsonObject obj;
-        obj["id"] = QString::number(1 + QRandomGenerator::global()->bounded(3));
-        obj["temperature"] = QRandomGenerator::global()->bounded(20,61);
-        obj["voltage"] = QRandomGenerator::global()->bounded(1,6);
-
-        stream += QJsonDocument(obj).toJson(QJsonDocument::Compact);
-        stream += '\n';
-    }
-
-    if(QRandomGenerator::global()->bounded(5) == 0)
-        stream += QByteArray("this is not json \n");
-
-    if(stream.size() >= 2 && QRandomGenerator::global()->bounded(2) == 0)
-    {
-        int half = stream.size() / 2;
-        parser_->appendData(stream.left(half));
-        pending_ = stream.mid(half);
-    }
-    else
-    {
-        parser_->appendData(stream);
     }
 }
