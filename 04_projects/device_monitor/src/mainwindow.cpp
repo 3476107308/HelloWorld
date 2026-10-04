@@ -49,6 +49,7 @@ void MainWindow::setupUi()
     auto* root_layout = new QVBoxLayout(central_widget);
     auto* content_splitter = new QSplitter(Qt::Horizontal, central_widget);
 
+
     auto* device_panel = new QGroupBox(QStringLiteral("设备列表"), content_splitter);
     auto* device_layout = new QVBoxLayout(device_panel);
     device_list_ = new QListView(device_panel);
@@ -176,9 +177,34 @@ void MainWindow::setupUi()
 
 
 
+    auto* display_splitter = new QSplitter(Qt::Vertical);
+    display_splitter->addWidget(chart_panel);
+    display_splitter->addWidget(log_panel);
+
+    auto* io_splitter = new QSplitter(Qt::Horizontal);
+    io_splitter->addWidget(data_panel);
+    io_splitter->addWidget(display_splitter);
+
+    auto* main_splitter = new QSplitter(Qt::Vertical);
+    main_splitter->addWidget(io_splitter);
+    main_splitter->addWidget(content_splitter);
+
+    main_splitter->setSizes({500,120});
+    display_splitter->setSizes({250,200});
+    io_splitter->setSizes({400,600});
 
 
+    main_splitter->setCollapsible(0,false);
+    main_splitter->setCollapsible(1,false);
+    display_splitter->setCollapsible(0,false);
+    display_splitter->setCollapsible(1,false);
+    io_splitter->setCollapsible(0,false);
+    io_splitter->setCollapsible(1,false);
 
+    main_splitter->setStretchFactor(0,1);
+    main_splitter->setStretchFactor(1,0);
+
+    root_layout->addWidget(main_splitter);
 }
 
 void MainWindow::updateDeviceDetails(int row)
