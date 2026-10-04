@@ -32,6 +32,7 @@ private:
     QCheckBox* hex_check_ = nullptr;
     QPushButton* send_button_ = nullptr;
     QLineEdit* input_ = nullptr;
+    QCheckBox* crlf_check_ = nullptr;
 
 signals:
         void sendRequested(const QByteArray& data);

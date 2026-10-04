@@ -26,10 +26,13 @@ DataView::DataView(QWidget* parent):QWidget(parent)
 
 
     input_ = new QLineEdit(this);
+    crlf_check_ = new QCheckBox("追加\\r\\n",this);
+    crlf_check_->setChecked(true);
     send_button_ = new QPushButton(QStringLiteral("发送"),this);
 
     auto* send_row = new QHBoxLayout();
     send_row->addWidget(input_);
+    send_row->addWidget(crlf_check_);
     send_row->addWidget(send_button_);
 
     layout->addLayout(top_row);
@@ -40,8 +43,9 @@ DataView::DataView(QWidget* parent):QWidget(parent)
         setMode(checked ? DisplayMode::Hex : DisplayMode::Text);
     });
     connect(send_button_,&QPushButton::clicked,this,[this]{
-        const QByteArray bytes = input_->text().toUtf8();
+        QByteArray bytes = input_->text().toUtf8();
         if(bytes.isEmpty()) return;
+        if(crlf_check_->isChecked()) bytes += "\r\n";
         tx_bytes_ += bytes.size();
         updateCounter();
         emit sendRequested(bytes);
