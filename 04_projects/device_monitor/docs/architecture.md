@@ -67,6 +67,29 @@ main
 
 这些是职责映射，不是代码复制清单。实现时优先保持小规模和可解释性。
 
+## 模块职责
+
+> **"不负责"一列比"负责"更重要** —— 它记录的是这个项目里划过的**边界**，也是面试时"为什么这么设计"的答案。
+
+| 模块 | 负责 | 不负责 |
+|---|---|---|
+| `ConnectBar` | 让用户填 host/port；**校验合法性**（空 / 非数字 / 超出 1–65535）；显示连接状态（灰/橙/绿/红）；**打开中禁止重复点击** | ❌ **不知道 `Transport` 存在**（通过 `openRequested` / `closeRequested` 信号把请求发出去）<br>❌ 不写日志<br>❌ 不发起真正的连接 |
+| `DataView` | 显示收到的字节；**文本 / HEX 两种模式**；`rx` / `tx` 字节计数；发送区（输入框 + **追加 `\r\n`** 选项） | ❌ **不知道 TCP / 串口存在**（只认 `QByteArray`）<br>❌ 不解析 JSON<br>❌ 不写日志<br>❌ 不判断连接状态 |
+| **`Transport`**（抽象） | 定义"传输"该有的能力：`open` / `close` / `isConnected` / `sendByte`；五个对外信号 `receiveByte` / `openSucceeded` / `openError` / `closed` / `sendFailed` | ❌ 不知道界面<br>❌ 不知道数据格式（JSON）<br>❌ 不知道背后是 TCP 还是串口 —— **这正是抽象层的意义** |
+| `TcpTransport` | 用 `QTcpSocket` 实现 `Transport`；`connectToHost` 异步连接；`state()` 状态判断；`readyRead` → `readAll()` | ❌ 不知道界面<br>❌ 不知道数据格式<br>❌ 不做分包（那是 `JsonLineParser` / `Framer` 的活） |
+| `JsonLineParser` | **字节流 → 完整消息**（内部缓冲区 + 循环切 `\n`，解决粘包/半包）→ `QJsonObject`；解析失败发 `parseFailed` 而不崩 | ❌ 不知道界面<br>❌ 不知道传输方式<br>❌ **不做任何 I/O**（只处理传进来的字节） |
+| `MainWindow` | 组装界面（连接条 / 收发框 / 曲线 / 日志 / 设备面板）；**充当「中枢」—— 把 A 的信号翻译成对 B 的方法调用**（例：`Transport::openError` → 写日志 + `connect_bar_->setStatus(...)`） | ❌ 不做协议解析<br>❌ 不做网络 I/O<br>❌ 不实现传输细节 |
+
+### 两个贯穿全项目的原则
+
+1. **数据单向流动，边界只认抽象**：`QTcpSocket` → `TcpTransport` → **`Transport`** → `MainWindow` → 界面。
+   上层永远只依赖 `Transport`，所以 Day 11 加串口时 `MainWindow` 一行都不用改。
+
+2. **信号向上、方法调用向下，都不越级**：
+   - 下层需要通知上层 → **信号**（`ConnectBar::openRequested`、`Transport::receiveByte`）
+   - 上层需要更新下层显示 → **方法调用**（`connect_bar_->setStatus()`、`data_view_->appendData()`）
+   - **同层组件之间（`ConnectBar` ↔ `DataView`）永不直接通信**，一律经过 `MainWindow` 中转
+
 ## 当前进度记录
 
 日期：2026-09-05  

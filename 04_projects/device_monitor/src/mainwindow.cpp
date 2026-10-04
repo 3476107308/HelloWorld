@@ -23,7 +23,6 @@ constexpr double kMaxVoltage = 4.0;
 #include <QDateTime>
 #include <QListView>
 #include <QItemSelectionModel>
-#include <QTcpSocket>
 
 #include "TempChartWidget.h"
 #include "DeviceListModel.h"
