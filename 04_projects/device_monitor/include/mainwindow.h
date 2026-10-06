@@ -2,9 +2,10 @@
 #define DEVICE_MONITOR_MAINWINDOW_H
 
 #include <QMainWindow>
-#include "device.h"
 #include <QVector>
 
+#include "device.h"
+#include "ConnectionConfig.h"
 
 class QPushButton;
 class QLabel;
@@ -15,7 +16,8 @@ class DeviceListModel;
 class TempChartWidget;
 class JsonLineParser;
 class QByteArray;
-class TcpTransport;
+class IoWorker;
+class QThread;
 class DataView;
 class ConnectBar;
 
@@ -25,7 +27,7 @@ class MainWindow final : public QMainWindow
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
-    ~MainWindow() override = default;
+    ~MainWindow() override;
 
 private:
     void setupUi();
@@ -46,12 +48,18 @@ private:
     DeviceListModel* device_model_ = nullptr;
     TempChartWidget* temp_chart_ = nullptr;
     JsonLineParser* parser_ = nullptr;
-    TcpTransport* transport_ = nullptr;
+    QThread* io_thread_ = nullptr;
+    IoWorker* worker_ = nullptr;
     DataView* data_view_ = nullptr;
     ConnectBar* connect_bar_ = nullptr;
 
 public slots:
     void updateDeviceDetails(int row);
+
+signals:
+    void requestOpen(const ConnectionConfig& );
+    void requestClose();
+    void requestSend(const QByteArray& );
 };
 
 #endif  // DEVICE_MONITOR_MAINWINDOW_H

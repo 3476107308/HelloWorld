@@ -23,11 +23,12 @@ constexpr double kMaxVoltage = 4.0;
 #include <QDateTime>
 #include <QListView>
 #include <QItemSelectionModel>
+#include <QThread>
 
 #include "TempChartWidget.h"
 #include "DeviceListModel.h"
 #include "JsonLineParser.h"
-#include "TcpTransport.h"
+#include "IoWorker.h"
 #include "DataView.h"
 #include "ConnectBar.h"
 
@@ -38,9 +39,16 @@ MainWindow::MainWindow(QWidget* parent)
 {
     setWindowTitle(QStringLiteral("Device Monitor"));
     resize(900, 600);
+    qDebug() << "[MainWindow] UI thread =" << QThread::currentThread();
     setupUi();
 }
 
+MainWindow::~MainWindow()
+{
+    io_thread_->quit();
+    io_thread_->wait();
+    delete worker_;
+}
 
 void MainWindow::setupUi()
 {
@@ -113,16 +121,10 @@ void MainWindow::setupUi()
     connect_bar_ = new ConnectBar(central_widget);
     root_layout->addWidget(connect_bar_);
     connect(connect_bar_,&ConnectBar::openRequested,this,[this](const ConnectionConfig& cfg){
-        transport_->setHost(cfg.host);
-        transport_->setPort(cfg.port);
-        if(!transport_->open())
-        {
-            writeLog(QStringLiteral("打开被拒绝：当前状态不允许连接"));
-            connect_bar_->setStatus(ConnectBar::Status::Error,QStringLiteral("当前状态不允许连接"));
-        }
+        emit requestOpen(cfg);
     });
     connect(connect_bar_,&ConnectBar::closeRequested,this,[this]{
-        transport_->close();
+        emit requestClose();
     });
     root_layout->addWidget(content_splitter,1);
     root_layout->addWidget(chart_panel);
@@ -130,7 +132,7 @@ void MainWindow::setupUi()
     auto* data_panel_layout = new QVBoxLayout(data_panel);
     data_view_ = new DataView(data_panel);
     connect(data_view_,&DataView::sendRequested,this,[this](const QByteArray& data){
-        transport_->sendByte(data);
+        emit requestSend(data);
     });
     data_panel_layout->addWidget(data_view_);
     root_layout->addWidget(data_panel);
@@ -151,30 +153,43 @@ void MainWindow::setupUi()
     });
 
 
-    transport_ = new TcpTransport(this);
-    connect(transport_,&Transport::openSucceeded,this,[this]{
+    io_thread_ = new QThread(this);
+    worker_ = new IoWorker();
+    worker_->moveToThread(io_thread_);
+
+
+
+    connect(worker_,&IoWorker::connectionOpened,this,[this]{
         writeLog(QStringLiteral("连接成功"));
         connect_bar_->setStatus(ConnectBar::Status::Connected);
     });
-    connect(transport_,&Transport::openError,this,[this](const QString& reason){
+    connect(this,&MainWindow::requestOpen,worker_,&IoWorker::openConnection);
+
+    connect(worker_,&IoWorker::connectionFailed,this,[this](const QString& reason){
         writeLog(QStringLiteral("连接失败:") + reason);
         connect_bar_->setStatus(ConnectBar::Status::Error,reason);
     });
-    connect(transport_,&Transport::closed,this,[this]{
-        writeLog(QStringLiteral("连接已断开"));
+
+    connect(worker_,&IoWorker::connectionClosed,this,[this]{
+        writeLog(QStringLiteral("断开连接"));
         connect_bar_->setStatus(ConnectBar::Status::Disconnected);
     });
-    connect(transport_,&Transport::sendFailed,this,[this](const QString& reason){
+    connect(this,&MainWindow::requestClose,worker_,&IoWorker::closeConnection);
+
+    connect(worker_,&IoWorker::sendFailed,this,[this](const QString& reason){
         writeLog(QStringLiteral("发送失败:") + reason);
     });
-    connect(transport_,&Transport::receiveByte,this,[this](const QByteArray& data){
+    connect(this,&MainWindow::requestSend,worker_,&IoWorker::sendData);
+
+    connect(worker_,&IoWorker::dataReceived,this,[this](const QByteArray& data){
         writeLog(QStringLiteral("接收成功，数据为:") + QString::fromUtf8(data));
         data_view_->appendData(data);
         parser_->appendData(data);
     });
 
 
-
+    connect(io_thread_,&QThread::started,worker_,&IoWorker::start);
+    io_thread_->start();
 
     auto* display_splitter = new QSplitter(Qt::Vertical);
     display_splitter->addWidget(chart_panel);

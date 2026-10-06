@@ -30,6 +30,7 @@ qt_add_executable(device_monitor
     include/ConnectBar.h
     src/ConnectBar.cpp
     include/IoWorker.h
+    src/IoWorker.cpp
 
 
 
