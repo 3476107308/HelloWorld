@@ -4,6 +4,7 @@
 #include <QPointF>
 #include <QRectF>
 #include <QColor>
+#include <cmath>
 
 
 TempChartWidget::TempChartWidget(QWidget* parent):QWidget(parent){}
@@ -40,10 +41,23 @@ void TempChartWidget::paintEvent(QPaintEvent* event)
     QRectF plot = QRectF(leftMargin,topMargin,width() - leftMargin - rightMargin,height() - topMargin - bottomMargin);
     if(plot.width() <= 0 || plot.height() <= 0) return;
 
-    for(double v = kMinTemp; v <= kMaxTemp + 1e-6; v += kStep)
+    double lo = kMinTemp;
+    double hi = kMaxTemp;
+    for(double v:points_)
     {
-        double y = plot.top() + plot.height()
-        - (v - kMinTemp) / (kMaxTemp - kMinTemp) * plot.height();   // 和曲线同一公式
+        lo = qMin(lo,v);
+        hi = qMax(hi,v);
+    }
+    lo = std::floor(lo / kStep) * kStep;
+    hi = std::ceil(hi / kStep) * kStep;
+    const double span = hi -lo;
+    auto toY = [&](double v){
+        return plot.top() + plot.height() - (v - lo) / span * plot.height();
+    };
+
+    for(double v = lo; v <= hi + 1e-6; v += kStep)
+    {
+        double y = toY(v);
 
         p.setPen(QPen(QColor(220, 220, 220), 1));                 // 浅灰细线
         p.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y));
@@ -65,12 +79,14 @@ void TempChartWidget::paintEvent(QPaintEvent* event)
     for(int i = 0;i < points_.size();i++)
     {
         double x = plot.left() + plot.width() * double(i) / (kMaxPoints - 1);
-        double y = plot.top() + plot.height() - (points_[i] - kMinTemp) * plot.height() / (kMaxTemp - kMinTemp);
+        double y = toY(points_[i]);
         poly << QPointF(x,y);
     }
 
-
+    p.save();
+    p.setClipRect(plot);
     p.setPen(QPen(Qt::blue,2));
     p.drawPolyline(poly);
+    p.restore();
     }
 }
