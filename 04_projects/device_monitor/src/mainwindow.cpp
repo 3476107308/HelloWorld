@@ -25,6 +25,8 @@ constexpr double kMaxVoltage = 4.0;
 #include <QItemSelectionModel>
 #include <QThread>
 #include <QPlainTextEdit>
+#include <QFileDialog>
+
 
 #include "TempChartWidget.h"
 #include "DeviceListModel.h"
@@ -148,7 +150,23 @@ void MainWindow::setupUi()
                      .arg(obj["temperature"].toDouble())
                      .arg(obj["voltage"].toDouble()));
         temp_chart_->addValue(obj["temperature"].toDouble());
+
+        TelemetryRecord rec;
+        rec.ts_ = QDateTime::currentDateTime();
+        rec.id_ = obj["id"].toString();
+        rec.temperature_ = obj["temperature"].toDouble();
+        rec.voltage_ = obj["voltage"].toDouble();
+        history_.append(rec);
+        if(history_.size() > kMaxHistory)
+        {
+            history_.removeFirst();
+        }
     });
+
+    export_button_ = new QPushButton(QStringLiteral("导出CSV"),data_panel);
+    data_panel_layout->addWidget(export_button_);
+
+    connect(export_button_,&QPushButton::clicked,this,&MainWindow::exportCsv);
 
     connect(parser_,&JsonLineParser::parseFailed,this,[this](const QString& reason){
         writeLog(QStringLiteral("解析失败:") + reason);
@@ -351,4 +369,45 @@ void MainWindow::writeLog(const QString& msg)
         file.write(line.toUtf8() + "\n");
         file.close();
     }
+}
+
+void MainWindow::exportCsv()
+{
+    if (history_.isEmpty()) {
+        writeLog(QStringLiteral("没有数据可导出"));
+        return;
+    }
+
+    const QString path = QFileDialog::getSaveFileName(
+        this,
+        QStringLiteral("导出 CSV"),
+        QStringLiteral("telemetry.csv"),
+        QStringLiteral("CSV 文件 (*.csv)"));
+
+    if (path.isEmpty()) {
+        writeLog(QStringLiteral("已取消导出"));
+        return;
+    }
+
+
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
+            writeLog(QStringLiteral("导出失败：无法写入 ") + path);
+            return;
+        }
+
+        QTextStream out(&file);
+
+        out << QStringLiteral("timestamp,id,temperature,voltage\r\n");
+
+        for (const TelemetryRecord& rec : history_) {
+            out << rec.ts_.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss.zzz")) << ','
+                << rec.id_ << ','
+                << QString::number(rec.temperature_, 'f', 2) << ','
+                << QString::number(rec.voltage_,     'f', 2) << "\r\n";
+        }
+    }
+
+    writeLog(QStringLiteral("已导出 %1 条到 %2").arg(history_.size()).arg(path));
 }

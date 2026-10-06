@@ -6,6 +6,7 @@
 
 #include "device.h"
 #include "ConnectionConfig.h"
+#include "TelemetryRecord.h"
 
 class QPushButton;
 class QLabel;
@@ -28,6 +29,8 @@ class MainWindow final : public QMainWindow
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
+
+    static constexpr int kMaxHistory = 10000;
 
 private:
     void setupUi();
@@ -52,9 +55,12 @@ private:
     IoWorker* worker_ = nullptr;
     DataView* data_view_ = nullptr;
     ConnectBar* connect_bar_ = nullptr;
+    QVector<TelemetryRecord> history_;
+    QPushButton* export_button_ = nullptr;
 
 public slots:
     void updateDeviceDetails(int row);
+    void exportCsv();
 
 signals:
     void requestOpen(const ConnectionConfig& );

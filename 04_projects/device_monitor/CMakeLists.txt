@@ -31,6 +31,7 @@ qt_add_executable(device_monitor
     src/ConnectBar.cpp
     include/IoWorker.h
     src/IoWorker.cpp
+    include/TelemetryRecord.h
 
 
 
