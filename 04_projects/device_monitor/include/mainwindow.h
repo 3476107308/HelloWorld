@@ -10,7 +10,7 @@
 class QPushButton;
 class QLabel;
 class QListView;
-class QTextEdit;
+class QPlainTextEdit;
 class QTimer;
 class DeviceListModel;
 class TempChartWidget;
@@ -40,7 +40,7 @@ private:
     QLabel* selected_device_label_ = nullptr;
     QLabel* status_label_ = nullptr;
     QLabel* telemetry_label_ = nullptr;
-    QTextEdit* log_view_ = nullptr;
+    QPlainTextEdit* log_view_ = nullptr;
     QVector<Device> devices_;
     QTimer* refresh_timer_ = nullptr;
     QPushButton* save_button_ = nullptr;

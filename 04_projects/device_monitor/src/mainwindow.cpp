@@ -24,6 +24,7 @@ constexpr double kMaxVoltage = 4.0;
 #include <QListView>
 #include <QItemSelectionModel>
 #include <QThread>
+#include <QPlainTextEdit>
 
 #include "TempChartWidget.h"
 #include "DeviceListModel.h"
@@ -81,8 +82,9 @@ void MainWindow::setupUi()
 
     auto* log_panel = new QGroupBox(QStringLiteral("运行日志"), central_widget);
     auto* log_layout = new QVBoxLayout(log_panel);
-    log_view_ = new QTextEdit(log_panel);
+    log_view_ = new QPlainTextEdit(log_panel);
     log_view_->setReadOnly(true);
+    log_view_->setMaximumBlockCount(500);
     log_view_->setPlainText(QStringLiteral("程序已启动，等待设备数据。"));
     log_layout->addWidget(log_view_);
 
@@ -182,7 +184,6 @@ void MainWindow::setupUi()
     connect(this,&MainWindow::requestSend,worker_,&IoWorker::sendData);
 
     connect(worker_,&IoWorker::dataReceived,this,[this](const QByteArray& data){
-        writeLog(QStringLiteral("接收成功，数据为:") + QString::fromUtf8(data));
         data_view_->appendData(data);
         parser_->appendData(data);
     });
@@ -342,7 +343,7 @@ void MainWindow::loadConfig()
 
 void MainWindow::writeLog(const QString& msg)
 {
-    log_view_->append(msg);
+    log_view_->appendPlainText(msg);
     QFile file(QStringLiteral("run.log"));
     if(file.open(QIODevice::Append | QIODevice::Text))
     {
