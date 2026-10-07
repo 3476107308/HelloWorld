@@ -16,6 +16,11 @@ void JsonLineParser::appendData(const QByteArray& chunk)
         buffer_.remove(0,pos + 1);
         parseLine(line);
     }
+    if(buffer_.size() > kMaxBuffer)
+    {
+        emit parseFailed(QStringLiteral("单行超限（>100KB），已丢弃并重新同步"));
+        buffer_.clear();
+    }
 }
 
 void JsonLineParser::parseLine(const QByteArray& line)

@@ -12,6 +12,7 @@ class JsonLineParser   : public QObject
 public:
     JsonLineParser(QObject* parent);
     void appendData(const QByteArray& chunk);
+    static constexpr long long kMaxBuffer = 100000;
 
 signals:
     void messageReceived(const QJsonObject& obj);

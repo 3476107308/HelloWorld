@@ -1,6 +1,205 @@
 # device_monitor
 
-一个面向 Qt/C++ 上位机方向的设备监控面板。项目参考 `sandbox/reference_projects/SerialTest` 的功能组织方式，但使用 Qt 6 + CMake 独立实现，不复制参考仓库源码。
+> **面向 Qt/C++ 上位机方向的串口 / TCP 调试与实时监控工具**
+> Qt 6 + CMake 独立实现。功能组织参考 SerialTest，**未复制其源码**。
+
+---
+
+## 一句话亮点
+
+**多线程收发 + UI 不卡顿。**
+
+100 KB/s 持续灌入时，网络 I/O 全部在独立工作线程完成，**主线程 CPU 占用 0.1%**，界面全程可交互（切换 HEX、输入文字、拖动分栏、曲线实时刷新、日志持续滚动）。
+
+这不是形容词 —— 下面有**实测数据**、**线程身份证据**和**可复现的测试脚本**。
+
+---
+
+## 功能
+
+| 模块 | 能力 |
+|---|---|
+| **连接管理** | TCP 连接 / 断开；主机端口校验（1–65535）；四态状态灯（未连接 / 连接中 / 已连接 / 错误）；失败时显示具体原因 |
+| **收发显示** | 文本 / HEX 双模式；rx / tx 字节计数；显示区限长 500 行 |
+| **数据发送** | UTF-8 文本发送；可勾选追加 `\r\n` |
+| **协议解析** | 文本 JSON、一行一条（`\n` 分隔）；缓冲区 + 循环切分处理**粘包 / 半包**；解析失败丢一条并记日志，不影响后续 |
+| **实时曲线** | `QPainter` 自绘温度折线；Y 轴刻度 + 网格线；范围随数据自适应；绘图区裁剪 |
+| **CSV 导出** | `QFileDialog` 选路径、`QTextStream` 逐行写、CRLF 行尾（Excel / 记事本兼容）；含「取消」与「无数据」两条边界 |
+| **运行日志** | 界面日志区 + `run.log` 文件双写，带时间戳；日志区限长 500 行 |
+
+---
+
+## 性能实测
+
+| 指标 | 实测值 | 测量方式 |
+|---|---|---|
+| **持续吞吐** | **100.0 KB/s** | `tools/tcp_stress.ps1`（1024 B × 100 条/秒），连续 2 轮 × 25 s |
+| **发送端背压** | **零** —— 全程 99.4–100.0 KB/s，一次未回落 | 发送端每秒自报速率 |
+| **主线程 CPU** | **0.1%** | 任务管理器，灌数据期间 |
+| **进程内存** | **49 MB** | 任务管理器（优化前 269 MB） |
+| **界面可交互性** | HEX 切换、文本输入、曲线刷新、日志滚动 **全部流畅** | 灌数据期间人工操作 |
+| **线程身份** | UI `QThread(0x…362e0, "Qt mainThread")` ≠ io `QThread(0x…97d60)` | `qDebug() << QThread::currentThread()` |
+
+> **「零背压」比速率本身更重要**：发送端从未被 TCP 缓冲区拖慢，说明应用**完全跟得上** 100 KB/s —— 瓶颈既不在网络层，也不在 I/O 线程。
+
+### 一次真实的性能优化
+
+压测发现：**横向拖动分栏线（改变宽度）明显卡顿**，其余操作全部流畅。
+
+| 阶段 | 内容 |
+|---|---|
+| **对照实验定位** | 同一根把手：文档为空时流畅 → 灌完 1 万行日志后迟钝 → 清空后又流畅 → 锁定根因是**文本重新折行排版**，与网络和数据量无关 |
+| **根因** | 日志区用了 `QTextEdit`（富文本模型，**没有** `setMaximumBlockCount`），且每条报文把 1030 字符原始字节抄进日志 → 文档涨到 **5.4 MB / 10673 行** → 每次改变宽度都要全文重排 |
+| **修复** | `QTextEdit` → `QPlainTextEdit` + `setMaximumBlockCount(500)`；逐包原文不再入日志（收发框已显示原始字节） |
+| **效果** | 日志文本量 **↓25 倍**，进程内存 **269 MB → 49 MB**，卡顿消失，吞吐无回退 |
+
+---
+
+## 架构
+
+### 模块职责
+
+| 模块 | 职责 |
+|---|---|
+| `Transport`（抽象） | 传输层接口：`open/close/isConnected/sendByte` + 5 个信号，**不含任何具体实现** |
+| `TcpTransport` | `Transport` 的 TCP 实现，封装 `QTcpSocket` |
+| `IoWorker` | 传输层工作对象：持有 `Transport`，向 UI 暴露 `dataReceived` 等信号 |
+| `MainWindow` | **唯一的中枢**：所有信号槽在此汇合，也是唯一被允许操作 UI 的对象 |
+| `DataView` / `ConnectBar` / `TempChartWidget` | 纯 UI 控件，只发信号，不碰业务 |
+| `JsonLineParser` | 协议解析：缓冲区 + 按 `\n` 循环切分 |
+
+**两条设计原则**：
+
+1. **同层组件不互相认识** —— 通信一律经过 `MainWindow`
+2. **每一层只认识自己的下一层** —— `MainWindow` 认识 `IoWorker`，`IoWorker` 认识 `Transport`，而 **`MainWindow` 完全不认识 `Transport`**
+
+### 线程模型
+
+```
+主线程 (UI)                              工作线程 (io)
+─────────────                            ─────────────
+MainWindow ── emit requestOpen ──▶ [队列] ──▶ IoWorker::openConnection
+                                                    │
+                                             TcpTransport::open()
+                                                    │
+                                              QTcpSocket 读写（阻塞 I/O）
+                                                    │
+UI 更新 ◀── [队列] ◀── emit dataReceived ── IoWorker
+```
+
+- `IoWorker` 用 `moveToThread()` 移入独立 `QThread` —— **必须无 parent**，否则搬家失败
+- `TcpTransport` 在**工作线程内**创建，保证 socket 与线程归属一致
+- 跨线程连接自动使用 `Qt::QueuedConnection`，参数被拷贝后投递
+- 线程启动用 `connect(io_thread_, &QThread::started, worker_, &IoWorker::start)`，**不直接调用 `start()`**
+- 退出序列：`quit()`（异步请求）→ `wait()`（阻塞等待）→ `delete worker_`
+
+详见 `docs/architecture.md`。
+
+---
+
+## 构建与运行
+
+**环境**：Windows + Qt 6.11.0 (MinGW 64-bit, GCC 13.1.0) + CMake ≥ 3.19 + Ninja
+
+```powershell
+cd 04_projects\device_monitor
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1
+```
+
+> `tools/build.ps1` 会把 Qt 自带的 MinGW 13.1.0 前置到 PATH。系统 PATH 上的其他 GCC（如 MSYS2 的 GCC 15）与 Qt 的 ABI 不匹配，会产生难以定位的链接错误。
+>
+> 也可以用 Qt Creator 打开 `CMakeLists.txt`（Kit：`Desktop_Qt_6_11_0_MinGW_64_bit-Debug`）。
+
+---
+
+## 可复现的测试场景
+
+三个脚本，全部在 `tools/` 下：
+
+```powershell
+# ① 基础数据源：监听 8888，客户端接入后发 N 条 JSON
+powershell -ExecutionPolicy Bypass -File tools\tcp_feed.ps1 -Port 8888 -Count 100 -IntervalMs 50 -RandomTemp
+
+# ② 吞吐压测：稳定 100 KB/s（加 -Fast 则打极限）
+powershell -ExecutionPolicy Bypass -File tools\tcp_stress.ps1 -Port 8888 -Kbps 100 -Seconds 25
+
+# ③ 粘包 / 半包测试：一次连接跑完 5 个用例
+powershell -ExecutionPolicy Bypass -File tools\tcp_framing_test.ps1 -Port 8888
+```
+
+**先跑脚本**（它开始监听），**再启动程序并点「连接」**。
+
+### 粘包 / 半包测试用例与结果
+
+| # | 用例 | 网线上做了什么 | 预期 | 实测 |
+|---|---|---|---|---|
+| 1 | **SPLIT**（半包） | 一条 JSON 切成两段，间隔 600 ms | 1 条 | ✅ 1 条 |
+| 2 | **STICKY**（粘包） | 3 条 JSON 挤进**一次** `Write()` | 3 条，顺序正确 | ✅ 3 条 |
+| 3 | **BYTE-WISE** | 一条 JSON 拆成 40 次**单字节**写 | 1 条，且只在 `\n` 到齐后出现 | ✅ 1 条 |
+| 4 | **MIXED** | 一次写 = 上条尾部 + 完整一条 + 下条头部 | 3 条，顺序正确 | ✅ 3 条 |
+| 5 | **RECOVERY** | 先发一行非法文本，再发一条合法 JSON | 1 条解析失败 + 1 条正常 | ✅ 各 1 条 |
+
+**总账：9 条消息零丢失、零乱序，1 条容错 —— 与发送端逐条对账一致。**
+
+> 测试脚本本身也被验证过：第一版 CASE 4 多打了一个引号，导致 41 被解析成错误行；靠逐条对账才发现并修正。**测试也要被验证。**
+
+### CSV 导出验收
+
+| 检查项 | 结果 |
+|---|---|
+| 行数 | **101** 行 = 1 表头 + 100 数据 |
+| 文件大小 | **3834 字节** = (32+2) + 100×(36+2) → **逐字节证明每行都是纯 CRLF**，既没退化成 LF，也没变成 `\r\r\n` |
+| 最后一行 | 真数据，非空 → `QTextStream` 缓冲未丢尾部 |
+| 边界 | 「取消」→ 记日志、不生成文件；「无数据」→ 记日志、不弹对话框 |
+
+---
+
+## 已知限制
+
+- **只实现 `Line` 分包模式（`\n` 分隔）**，未做 `LengthPrefix` / 定长模式
+- **未接真实串口硬件**：本机 Qt 未安装 SerialPort 模块且无硬件。`Transport` 抽象已为 `SerialTransport` 预留接口，补齐时 **`MainWindow` 无需改动**
+- **CSV 未做字段转义**：id 含逗号时列会错位（当前 id 为数字，不触发）
+- **曲线只画温度**，未画电压；X 轴无时间刻度
+- **曲线 Y 轴范围跟随数据自适应**：超范围数据显示正确，但刻度会随数据跳动
+- **`tx` 计数是乐观的**：`sendByte` 失败时仍会累加
+
+---
+
+## 目录结构
+
+```
+device_monitor/
+├── include/     头文件（Transport / TcpTransport / IoWorker / MainWindow / ...）
+├── src/         实现
+├── tools/       构建与测试脚本（build / tcp_feed / tcp_stress / tcp_framing_test）
+├── docs/        架构说明 / 协议草案 / Qt 速查表 / 面试问答
+├── CMakeLists.txt
+└── README.md
+```
+
+---
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| `docs/architecture.md` | 模块职责表、线程模型详解 |
+| `docs/protocol.md` | 通信协议草案（JSON + `\n`、字段定义、粘包半包策略） |
+| `docs/interview_qa.md` | 6 个面试问题的完整回答 |
+| `docs/qt_cheatsheet.md` | 「任务 → 类 → 关键函数」速查表 + 踩坑清单 |
+
+---
+
+## 运行截图
+
+> **待补**：连接成功 + 曲线绘制 + 日志滚动的整窗截图
+
+---
+
+## 附：早期开发过程记录（学习日志存档）
+
+> 以下是项目早期的阶段化学习记录（9/7 – 9/11），保留作过程存档。
+> **当前项目状态以上方 README 为准。**
 
 ## 学习规则
 
